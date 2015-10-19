@@ -46,7 +46,8 @@ convection = @(t) (coffee_air_transfer_coefficient * area_of_convection) ...
 
 s.flow('Heat Loss to Convection', 'Coffee Energy', false, convection);
 
-s.run()
+use_ode45 = true;
+s.run(use_ode45);
 
 % Plot results
 coffee_energy = s.get('Coffee Energy');

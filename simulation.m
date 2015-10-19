@@ -1,5 +1,5 @@
 % Simulation Library - Danny Wolf
-% Based on 
+% Based on https://github.com/jdherman/stockflow
 classdef simulation < handle
     properties
         t % Time axis
@@ -8,6 +8,7 @@ classdef simulation < handle
         current % current values
         done % boolean flag indicating whether the simulation has finished
         results % the stored values
+        use_ode45 % use integrator
     end
     
     methods
@@ -18,6 +19,7 @@ classdef simulation < handle
             self.current = [];
             self.done = false;
             self.results = containers.Map;
+            self.use_ode45 = false;
         end
 
         function [] = new_state_var(self, key, IC)
@@ -30,7 +32,7 @@ classdef simulation < handle
             if ~self.done
                 stock = self.current(self.ix(key));
             else
-                stock = self.results(:, self.ix(key));
+                stock = self.results(self.ix(key), :);
             end
         end
         
@@ -58,9 +60,9 @@ classdef simulation < handle
             self.flows(key) = {from_f, to_f, func};
         end
         
-        function d = xdot(self, y, t, dt)
+        function d = xdot(self, t, y, dt)
             self.current = y;
-            d = zeros(1, length(y));
+            d = zeros(length(y), 1);
             
             for flow_key = self.flows.keys
                 key = cell2mat(flow_key); % needed for accessing ix map
@@ -71,6 +73,7 @@ classdef simulation < handle
                 to = cell2mat(flow(2));
                 
                 flow_func = cell2mat(flow(3));
+                
                 i = self.ix(key);
                 ft = flow_func(t);
                 ft = ft * dt;
@@ -89,19 +92,32 @@ classdef simulation < handle
             end
         end
         
-        function [] = run(self)
+        function [] = run(self, use_ode45)
+            if nargin < 2
+                self.use_ode45 = false;
+            else
+                self.use_ode45 = use_ode45;
+            end
+
             self.done = false;
             
-            self.results = zeros(length(self.t), length(self.current));
-            self.results(1, :) = self.current;
-            
-            for i = 2:length(self.t)
-                dt = self.t(i) - self.t(i - 1);
-                self.results(i, :) = self.results(i - 1, :) + self.xdot(self.results(i - 1, :), self.t(i), dt);
+            self.results = zeros(length(self.current), length(self.t));
+            self.results(:, 1) = self.current;
+
+            if self.use_ode45
+                summed = @(t, y) self.xdot(t, y, 1);
+                ode_output = ode45(summed, [self.t(1), self.t(end)], self.results(:, 1));
+                self.t = ode_output.x;
+                self.results = ode_output.y;
+            else
+                for i = 2:length(self.t)
+                    dt = self.t(i) - self.t(i - 1);
+                    self.results(:, i) = self.results(:, i - 1) + self.xdot(self.t(i), self.results(:, i - 1), dt);
+                end
             end
             
             self.done = true;
-            self.current = self.results(1, :); % restore initial conditions
+            self.current = self.results(:, 1); % restore initial conditions
         end
     end
 end
