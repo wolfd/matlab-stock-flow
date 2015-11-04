@@ -87,7 +87,7 @@ classdef simulation < handle
                 
                 % To
                 if to ~= false
-                    d(to) = d(to) - ft;
+                    d(to) = d(to) + ft;
                 end
             end
         end
